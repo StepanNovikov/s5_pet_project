@@ -34,6 +34,18 @@ class User implements UserInterface
      */
     private $password;
 
+    private $plainPassword;
+
+    public function getPlainPassword()
+    {
+        return $this->plainPassword;
+    }
+
+    public function setPlainPassword($password)
+    {
+        $this->plainPassword = $password;
+    }
+
     public function getId(): ?int
     {
         return $this->id;
