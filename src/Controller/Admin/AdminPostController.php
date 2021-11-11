@@ -4,55 +4,49 @@
 namespace App\Controller\Admin;
 
 
-use App\Entity\Category;
 use App\Entity\Post;
 use App\Form\PostType;
-use App\Service\FileManagerServiceInterface;
+use App\Repository\RepositoryInterface\CategoryRepositoryInterface;
+use App\Repository\RepositoryInterface\PostRepositoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 
 class AdminPostController extends AdminBaseController
 {
+    private $categoryRepository;
+    private $postRepository;
+
+    public function __construct(CategoryRepositoryInterface $categoryRepository, PostRepositoryInterface $postRepository) {
+        $this->categoryRepository = $categoryRepository;
+        $this->postRepository = $postRepository;
+    }
+
     /**
      * @Route("/admin/post", name="admin_post")
      */
     public function index()
     {
-        $post = $this->getDoctrine()->getRepository(Post::class)
-            ->findAll();
-        $checkCategory = $this->getDoctrine()->getRepository(Category::class)
-            ->findAll();
         $forRender = parent::renderDefault();
         $forRender['title'] = 'Посты';
-        $forRender['post'] = $post;
-        $forRender['check_category'] = $checkCategory;
+        $forRender['post'] = $this->postRepository->getAllPost();
+        $forRender['check_category'] = $this->categoryRepository->getAllCategory();
         return $this->render('admin/post/index.html.twig',$forRender);
     }
 
     /**
      * @Route("/admin/post/create", name="admin_post_create")
      * @param Request $request
-     * @param FileManagerServiceInterface $fileManagerService
      * @return \Symfony\Component\HttpFoundation\RedirectResponse|\Symfony\Component\HttpFoundation\Response
      */
-    public function create(Request $request,FileManagerServiceInterface $fileManagerService)
+    public function create(Request $request)
     {
-        $em = $this->getDoctrine()->getManager();
         $post = new Post();
         $form = $this->createForm(PostType::class, $post);
         $form->handleRequest($request);
         if($form->isSubmitted() && $form->isValid()) {
-            $image = $form->get('image')->getData();
-            if($image) {
-                $fileName = $fileManagerService->imagePostUpload($image);
-                $post->setImage($fileName);
-            }
-            $post->setCreateAtValue();
-            $post->setUpdateAtValue();
-            $post->setIsPublished();
+            $file= $form->get('image')->getData();
+            $this->postRepository->setCreatePost($post,$file);
 
-            $em->persist($post);
-            $em->flush();
             $this->addFlash('success','Пост успешно добавлен');
 
             return $this->redirectToRoute('admin_post');
@@ -68,38 +62,21 @@ class AdminPostController extends AdminBaseController
      * @param int $id
      * @param Request $request
      */
-    public function update(int $id, Request $request, FileManagerServiceInterface $fileManagerService)
+    public function update(int $id, Request $request)
     {
-        $em = $this->getDoctrine()->getManager();
-        $post = $this->getDoctrine()->getRepository(Post::class)
-            ->find($id);
+        $post = $this->postRepository->getOnePost($id);
         $form = $this->createForm(PostType::class,$post);
         $form->handleRequest($request);
         if($form->isSubmitted() && $form->isValid()) {
             if($form->get('save')->isClicked()) {
-
-                $image = $form->get('image')->getData();
-                $imageOld = $post->getImage();
-                if($image) {
-                    if($imageOld){
-                        $fileManagerService->removePostImage($imageOld);
-                    }
-                    $fileName = $fileManagerService->imagePostUpload($image);
-                    $post->setImage($fileName);
-                }
-
-                $post->setUpdateAtValue();
+                $file = $form->get('image')->getData();
+                $this->postRepository->setUpdatePost($post,$file);
                 $this->addFlash('success','Поста обновлен');
             }
             if($form->get('delete')->isClicked()) {
-                $image = $post->getImage();
-                if($image) {
-                    $fileManagerService->removePostImage($image);
-                }
-                $em->remove($post);
+                $this->postRepository->setDeletePost($post);
                 $this->addFlash('success','Пост удален');
             }
-            $em->flush();
             return $this->redirectToRoute('admin_post');
         }
         $forRender = parent::renderDefault();
